@@ -1,0 +1,14 @@
+packages:
+  ./
+  ../../haskell/circuits-agent
+  ../../haskell/circuits
+  ../../haskell/circuits-ad
+  ../../haskell/string-diagrams
+  ../../haskell/circuits-parser
+  ../../haskell/harpie
+  ../../haskell/harpie-numhask
+  ../../haskell/numhask
+  ../../haskell/numhask-diff
+  ../../haskell/process-stats
+
+write-ghc-environment-files: always

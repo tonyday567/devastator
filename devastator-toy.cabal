@@ -1,0 +1,114 @@
+cabal-version: 3.0
+name:          devastator-toy
+version:       0.1.0.0
+license:       BSD-3-Clause
+license-file:  LICENSE
+build-type:    Simple
+
+common ghc-options-stanza
+  ghc-options:
+    -Wall
+    -Wno-unused-imports
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+library
+  import:             ghc-options-stanza
+  default-language:   GHC2024
+  hs-source-dirs:     src
+  exposed-modules:
+    Devastator.Toy
+    Devastator.Tape
+    Devastator.Cert
+    Devastator.Verdict
+    Devastator.Replay
+    Devastator.Ledger
+    Devastator.Spectral
+    Devastator.Fiber
+    Devastator.Filter
+    Devastator.Null.Dyadic
+
+  build-depends:
+    base             >=4.18 && <5,
+    circuits-agent,
+    circuits-parser  >=0.1  && <0.2,
+    containers       >=0.6  && <0.9,
+    scientific       >=0.3  && <0.4,
+    text             >=2.0  && <3,
+    vector           >=0.13 && <0.14,
+
+executable devastator-toy-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          toy-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    devastator-toy,
+    text,
+
+executable devastator-replay-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          replay-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    devastator-toy,
+    text,
+
+executable devastator-ledger-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          ledger-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    devastator-toy,
+    directory,
+    filepath,
+    text,
+
+executable devastator-fiber-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          fiber-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    containers,
+    devastator-toy,
+    text,
+
+executable devastator-filter-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          filter-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    containers,
+    devastator-toy,
+    directory,
+    filepath,
+    text,
+
+executable devastator-null-axioma
+  import:           ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs:   app
+  main-is:          null-axioma.hs
+  build-depends:
+    base,
+    circuits-agent,
+    devastator-toy,
+    text,
