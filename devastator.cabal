@@ -27,6 +27,7 @@ library
     Devastator.Framing
     Devastator.Ledger
     Devastator.Null.Dyadic
+    Devastator.Null.ShortWave
     Devastator.Replay
     Devastator.Spectral
     Devastator.Tape
@@ -103,6 +104,15 @@ executable devastator-filter-axioma
     directory,
     filepath,
     text,
+
+executable devastator-shortwave-axioma
+  import: ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs: app
+  main-is: shortwave-axioma.hs
+  build-depends:
+    base,
+    devastator,
 
 executable devastator-null-axioma
   import: ghc-options-stanza
