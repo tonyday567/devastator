@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name: devastator-toy
+name: devastator
 version: 0.1.0.0
 license: BSD-3-Clause
 license-file: LICENSE
@@ -43,7 +43,7 @@ library
     time,
     vector >=0.13 && <0.14,
 
-executable devastator-toy-axioma
+executable devastator-axioma
   import: ghc-options-stanza
   default-language: GHC2024
   hs-source-dirs: app
@@ -51,7 +51,7 @@ executable devastator-toy-axioma
   build-depends:
     base,
     circuits-agent,
-    devastator-toy,
+    devastator,
     text,
 
 executable devastator-replay-axioma
@@ -62,7 +62,7 @@ executable devastator-replay-axioma
   build-depends:
     base,
     circuits-agent,
-    devastator-toy,
+    devastator,
     text,
 
 executable devastator-ledger-axioma
@@ -73,7 +73,7 @@ executable devastator-ledger-axioma
   build-depends:
     base,
     circuits-agent,
-    devastator-toy,
+    devastator,
     directory,
     filepath,
     text,
@@ -87,7 +87,7 @@ executable devastator-fiber-axioma
     base,
     circuits-agent,
     containers,
-    devastator-toy,
+    devastator,
     text,
 
 executable devastator-filter-axioma
@@ -99,7 +99,7 @@ executable devastator-filter-axioma
     base,
     circuits-agent,
     containers,
-    devastator-toy,
+    devastator,
     directory,
     filepath,
     text,
@@ -112,5 +112,5 @@ executable devastator-null-axioma
   build-depends:
     base,
     circuits-agent,
-    devastator-toy,
+    devastator,
     text,

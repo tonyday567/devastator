@@ -28,7 +28,7 @@ bodyValues = map (body . stamped)
 
 main :: IO ()
 main = do
-  putStrLn "devastator-toy-axioma: scalar ODE nonlinearity-swap filter"
+  putStrLn "devastator-axioma: scalar ODE nonlinearity-swap filter"
 
   let trueLog = integrate trueOp
       nullLog = integrate nullOp

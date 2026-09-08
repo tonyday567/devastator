@@ -47,8 +47,8 @@ main = do
   putStrLn "devastator-ledger-axioma: verdict ledger shape + replayability"
 
   tmp <- getTemporaryDirectory
-  let truePath = tmp </> "devastator-toy-true.jsonl"
-      nullPath = tmp </> "devastator-toy-null.jsonl"
+  let truePath = tmp </> "devastator-true.jsonl"
+      nullPath = tmp </> "devastator-null.jsonl"
 
   -------------------------------------------------------------------------
   -- produce the two tape files
