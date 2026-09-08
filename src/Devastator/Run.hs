@@ -41,8 +41,10 @@ import Devastator.Framing (epoch)
 data Run s b = Run
   { -- | The observation: read the tape body from the state alone.
     observe :: s -> b,
-    -- | The tick: advance the state one integration step.
-    tick :: s -> s
+    -- | The tick: advance the state one integration step. The argument is
+    -- the step index, starting at 1 — systems whose clock reads directly
+    -- off the index (rather than accumulating) use it.
+    tick :: Int -> s -> s
   }
 
 -- | Routing fields for the posts a run emits.
@@ -66,7 +68,7 @@ runTape stop cfg r s0 = go 0 s0 [seed]
     go n s acc
       | stop s = reverse acc
       | otherwise =
-          let s' = tick r s
+          let s' = tick r (n + 1) s
               p = Post (stepFrom cfg) (stepTo cfg) [fromIntegral n] (observe r s')
            in go (n + 1) s' (Stamped (epoch, fromIntegral (n + 1)) p : acc)
 
@@ -88,17 +90,18 @@ runTapeN stop cfgs runs s0s = seeds ++ concat (unfoldr step (s0s, 1))
     step (ss, k)
       | any stop ss = Nothing
       | otherwise =
-          let ss' = map (\(r, s) -> tick r s) (zip runs ss)
+          let ss' = map (\(r, s) -> tick r k s) (zip runs ss)
               posts =
-                [ Stamped (epoch, fromIntegral (n * k) + fromIntegral i) $
-                    Post (stepFrom cfg) (stepTo cfg) [threadOf i k] (observe r s')
+                [ Stamped (epoch, postId i k) $
+                    Post (stepFrom cfg) (stepTo cfg) [postId i (k - 1)] (observe r s')
                 | (i, cfg, r, s') <- zip4 [0 ..] cfgs runs ss'
                 ]
            in Just (posts, (ss', k + 1))
-    threadOf :: Int -> Int -> PostId
-    threadOf i k
-      | k <= 1 = fromIntegral i
-      | otherwise = fromIntegral (n * (k - 1)) + fromIntegral i
+    -- PostIds follow the cell's own chain: cell @i@ at tick @k@ sits at
+    -- @n * T_k + i@ with @T_k@ the triangular number, threading @n * T_{k-1}
+    -- + i@ — the recurrence @id_k = n * k + id_{k-1}@ in closed form.
+    postId :: Int -> Int -> PostId
+    postId i k = fromIntegral (n * k * (k + 1) `div` 2) + fromIntegral i
 
 zip4 :: [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
 zip4 (a : as) (b : bs) (c : cs) (d : ds) = (a, b, c, d) : zip4 as bs cs ds

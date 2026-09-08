@@ -7,41 +7,26 @@
 -- devastator's core operation at any height: compare operators via the tape.
 module Devastator.Filter
   ( FiberCertificate,
-    totalEnergyCert,
-    shellEnergyCert,
     filterVerdict,
+    resolveFiberCert,
+    judgeFiber,
     recomputeFiberVerdict,
   )
 where
 
-import Circuit.Agent (Post (..), PostId)
-import Circuit.Agent.Framing (Stamped, stamped)
-import Data.Complex (magnitude)
-import Data.Map.Strict qualified as Map
+import Circuit.Agent (PostId)
+import Circuit.Agent.Framing (Stamped)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text.IO
-import Devastator.Fiber (FiberBody, bodyField, readFiber)
-import Devastator.Framing (Jsonl (..))
-import Devastator.Ledger (VerdictEntry (..))
-import Devastator.Spectral (BilinearBox (..), SpectralField (..), energy, norm2)
+import Devastator.Cert (Certificate, shellEnergyCert, totalEnergyCert)
+import Devastator.Fiber (FiberBody)
+import Devastator.Ledger (VerdictEntry (..), recomputeWith)
+import Devastator.Run (Framed)
+import Devastator.Spectral (BilinearBox (..))
 import Devastator.Verdict (Verdict, verdictRel)
 
--- | A fiber certificate reads the tape and emits one scalar.
-type FiberCertificate = [Stamped FiberBody] -> Double
-
--- | Total energy of the final field.
-totalEnergyCert :: FiberCertificate
-totalEnergyCert = energy . bodyField . body . stamped . last
-
--- | Energy in shells strictly above the cutoff (in squared wavevector).
---
--- This is the first spectral certificate: it sees scale redistribution, which
--- the total energy certificate cannot.
-shellEnergyCert :: Double -> FiberCertificate
-shellEnergyCert cutoff meeting =
-  let SpectralField m = bodyField (body (stamped (last meeting)))
-   in 0.5 * sum [magnitude w ^ (2 :: Int) / norm2 k | (k, w) <- Map.toList m, norm2 k > cutoff]
+-- | A fiber certificate reads the fiber tape and emits one scalar.
+type FiberCertificate = Certificate FiberBody
 
 -- | Build one verdict entry from a true/null fiber pair and a certificate.
 --
@@ -80,28 +65,28 @@ filterVerdict eid certName cert trueBox nullBox trueLog nullLog truePath nullPat
           veThread = thread
         }
 
--- | Recompute a fiber verdict entry from its cited tape files.
---
--- The generic 'Devastator.Ledger.recomputeVerdict' is hardcoded to toy-body
--- tapes; this is the fiber-body variant.
-recomputeFiberVerdict :: VerdictEntry -> IO (Verdict, Double)
-recomputeFiberVerdict e = do
-  trueJsonl <- readTapeFile (veTrueLog e)
-  nullJsonl <- readTapeFile (veNullLog e)
-  let trueLog = readFiber trueJsonl
-      nullLog = readFiber nullJsonl
-      cert = resolveFiberCert (veCertificate e)
-      cTrue = cert trueLog
+-- | Resolve a fiber certificate by its ledger name.
+resolveFiberCert :: Text -> FiberCertificate
+resolveFiberCert "totalEnergyCert" = totalEnergyCert
+resolveFiberCert name
+  | "shellEnergyCert@" `Text.isPrefixOf` name =
+      let cutoff = read (Text.unpack (Text.drop 16 name))
+       in shellEnergyCert cutoff
+resolveFiberCert _ = totalEnergyCert
+
+-- | Fiber verdict judgement: relative separation against the larger value.
+judgeFiber ::
+  VerdictEntry ->
+  FiberCertificate ->
+  [Stamped FiberBody] ->
+  [Stamped FiberBody] ->
+  (Verdict, Double)
+judgeFiber e cert trueLog nullLog =
+  let cTrue = cert trueLog
       cNull = cert nullLog
       sig = abs (cTrue - cNull) / max 1e-12 (max (abs cTrue) (abs cNull))
-      v = verdictRel (veTolerance e) cTrue cNull
-  pure (v, sig)
-  where
-    readTapeFile path =
-      Jsonl . Text.lines <$> Text.IO.readFile (Text.unpack path)
-    resolveFiberCert "totalEnergyCert" = totalEnergyCert
-    resolveFiberCert name
-      | "shellEnergyCert@" `Text.isPrefixOf` name =
-          let cutoff = read (Text.unpack (Text.drop 16 name))
-           in shellEnergyCert cutoff
-    resolveFiberCert _ = totalEnergyCert
+   in (verdictRel (veTolerance e) cTrue cNull, sig)
+
+-- | Recompute a fiber verdict entry from its cited tape files.
+recomputeFiberVerdict :: VerdictEntry -> IO (Verdict, Double)
+recomputeFiberVerdict = recomputeWith resolveFiberCert judgeFiber

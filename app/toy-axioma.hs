@@ -7,7 +7,7 @@ module Main (main) where
 import Circuit.Agent (Post (..))
 import Circuit.Agent.Framing (Stamped, stamped)
 import Devastator.Cert (maxValueCert, trivialCert)
-import Devastator.Tape (frameMeeting, readMeeting)
+import Devastator.Tape (frameTape, readTape)
 import Devastator.Toy (ToyBody (..), integrate, nullOp, trueOp)
 import Devastator.Verdict (Verdict (..), verdictAbs, verdictRel)
 import System.Exit (exitFailure)
@@ -44,8 +44,8 @@ main = do
   assert "null max |u| blows up past 5" $ maxNull > 5.0
 
   putStrLn "round-trip"
-  let trueBack = readMeeting (frameMeeting trueLog)
-      nullBack = readMeeting (frameMeeting nullLog)
+  let trueBack = readTape (frameTape trueLog)
+      nullBack = readTape (frameTape nullLog)
   assert "true round-trip bodies match" $ bodiesMatch trueBack trueLog
   assert "null round-trip bodies match" $ bodiesMatch nullBack nullLog
 

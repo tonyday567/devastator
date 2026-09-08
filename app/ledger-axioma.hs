@@ -24,7 +24,7 @@ import Devastator.Ledger
     recomputeVerdict,
   )
 import Devastator.Replay (separationSignificance)
-import Devastator.Tape (frameMeeting)
+import Devastator.Tape (frameTape)
 import Devastator.Toy (BilinearOp (..), multiIntegrate, nullOp, trueOp)
 import Devastator.Verdict (Verdict (..), verdictAbs, verdictRel)
 import System.Directory (getTemporaryDirectory)
@@ -56,8 +56,8 @@ main = do
   putStrLn "tape files"
   let trueMeeting = multiIntegrate [("a", trueOp, 1.0)]
       nullMeeting = multiIntegrate [("a", nullOp, 1.0)]
-  Text.IO.writeFile truePath (Text.unlines (unJsonl (frameMeeting trueMeeting)))
-  Text.IO.writeFile nullPath (Text.unlines (unJsonl (frameMeeting nullMeeting)))
+  Text.IO.writeFile truePath (Text.unlines (unJsonl (frameTape trueMeeting)))
+  Text.IO.writeFile nullPath (Text.unlines (unJsonl (frameTape nullMeeting)))
   putStrLn ("  true tape: " ++ truePath)
   putStrLn ("  null tape: " ++ nullPath)
 

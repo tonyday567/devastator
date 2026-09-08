@@ -17,6 +17,7 @@ module Devastator.Null.Dyadic
     dyadicEnergy,
     dyadicShellEnergy,
     stepDyadic,
+    dyadicRun,
     integrateDyadic,
     frameDyadic,
     readDyadic,
@@ -33,6 +34,8 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector qualified as V
 import Devastator.Framing (Jsonl (..), epoch, uncons)
+import Devastator.Run (Framed (..), Run (..), RunCfg (..), runTape)
+import Devastator.Tape (frameTape, readTape)
 
 -- | Body carried by each dyadic post: time plus the shell amplitudes.
 data DyadicBody = DyadicBody
@@ -76,6 +79,17 @@ dyadicTendency n as =
 stepDyadic :: Double -> Int -> [Double] -> [Double]
 stepDyadic dt n as = zipWith (+) as (map (dt *) (dyadicTendency n as))
 
+-- | The KP model as a closed cell: state @(t, shells)@, observation the
+-- shell amplitudes, tick one explicit Euler step.
+dyadicRun :: Int -> Double -> Run (Double, [Double]) DyadicBody
+dyadicRun n dt =
+  Run
+    (\(t, as) -> DyadicBody t as)
+    (\_ (t, as) -> (t + dt, stepDyadic dt n as))
+
+dyadicCfg :: RunCfg
+dyadicCfg = RunCfg "dyadic-seed" "dyadic-step" ["dyadic"] ["dyadic"]
+
 jdouble :: Double -> Json
 jdouble = JNumber . fromFloatDigits
 
@@ -113,45 +127,17 @@ integrateDyadic ::
   -- | initial amplitudes
   [Double] ->
   [Stamped DyadicBody]
-integrateDyadic n dt tEnd seed = go 0 0.0 seed [seedPost]
-  where
-    seedPost =
-      Stamped
-        (epoch, 0)
-        ( Post
-            { from = "dyadic-seed",
-              to = ["dyadic"],
-              thread = [],
-              body = DyadicBody 0.0 (take n (seed ++ repeat 0.0))
-            }
-        )
-    go :: Int -> Double -> [Double] -> [Stamped DyadicBody] -> [Stamped DyadicBody]
-    go !k !t !as acc
-      | t >= tEnd - 1e-15 = reverse acc
-      | otherwise =
-          let t' = t + dt
-              as' = stepDyadic dt n as
-              p =
-                Post
-                  { from = "dyadic-step",
-                    to = ["dyadic"],
-                    thread = [fromIntegral (k :: Int)],
-                    body = DyadicBody t' as'
-                  }
-           in go (k + 1) t' as' (Stamped (epoch, fromIntegral (k + 1)) p : acc)
+integrateDyadic n dt tEnd seed =
+  runTape (\(t, _) -> t >= tEnd - 1e-15) dyadicCfg (dyadicRun n dt) (0, take n (seed ++ repeat 0.0))
+
+-- * Codec
+
+instance Framed DyadicBody where
+  frameBody = encodeBody
+  unframeBody = decodeBody
 
 frameDyadic :: [Stamped DyadicBody] -> Jsonl
-frameDyadic = Jsonl . map (frameStored . fmap encodePostBody)
-  where
-    encodePostBody p = p {body = encodeBody (body p)}
+frameDyadic = frameTape
 
 readDyadic :: Jsonl -> [Stamped DyadicBody]
-readDyadic = unfoldr unconsOne
-  where
-    unconsOne j = case uncons j of
-      These sp rest -> Just (fmap decodePostBody sp, rest)
-      This sp -> Just (fmap decodePostBody sp, Jsonl [])
-      That _ -> Nothing
-    decodePostBody p = case decodeBody (body p) of
-      Just b -> p {body = b}
-      Nothing -> error "readDyadic: malformed DyadicBody"
+readDyadic = readTape

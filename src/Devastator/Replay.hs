@@ -73,7 +73,7 @@ unchangedCone as bs = all match as
 -- the largest absolute change in the certificate. The floor is never reported
 -- as zero: if epsilon is zero or the system is perfectly insensitive, the
 -- floor is clamped to epsilon itself so the significance ratio stays honest.
-noiseFloor :: Certificate -> Double -> [Stamped ToyBody] -> Double
+noiseFloor :: Certificate ToyBody -> Double -> [Stamped ToyBody] -> Double
 noiseFloor cert epsilon meeting =
   let cells = cellsFromLog (BilinearOp "noise" id) meeting -- op unused for perturbation
       base = cert (multiIntegrate cells)
@@ -91,7 +91,7 @@ noiseFloor cert epsilon meeting =
 --
 -- Returns @|cert(true) - cert(null)| / noiseFloor(cert, epsilon, trueLog)@.
 -- A ratio above the chosen threshold is what earns a SEPARATING verdict.
-separationSignificance :: Certificate -> Double -> [Stamped ToyBody] -> [Stamped ToyBody] -> Double
+separationSignificance :: Certificate ToyBody -> Double -> [Stamped ToyBody] -> [Stamped ToyBody] -> Double
 separationSignificance cert epsilon trueLog nullLog =
   let sep = abs (cert trueLog - cert nullLog)
       floor' = noiseFloor cert epsilon trueLog
@@ -102,7 +102,7 @@ separationSignificance cert epsilon trueLog nullLog =
 -- Two cell orderings that differ only by permuting independent cells within a
 -- step must yield the same certificate. The physics (the causal DAG) is the
 -- same; only the file serialization changes.
-linearizationInvariant :: Certificate -> [(Text, BilinearOp, Double)] -> [(Text, BilinearOp, Double)] -> Bool
+linearizationInvariant :: Certificate ToyBody -> [(Text, BilinearOp, Double)] -> [(Text, BilinearOp, Double)] -> Bool
 linearizationInvariant cert cellsA cellsB =
   let logA = multiIntegrate cellsA
       logB = multiIntegrate cellsB

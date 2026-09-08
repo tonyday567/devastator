@@ -16,11 +16,13 @@ module Devastator.Ledger
     readLedger,
     frameEntry,
     parseEntry,
+    recomputeWith,
     recomputeVerdict,
   )
 where
 
 import Circuit.Agent (PostId)
+import Circuit.Agent.Framing (Stamped)
 import Circuit.Parser.Json (decodeJson, encodeJson)
 import Circuit.Parser.Json.Value (Json (..))
 import Data.List (unfoldr)
@@ -33,7 +35,9 @@ import Data.Vector qualified as V
 import Devastator.Cert (Certificate, maxValueCert, trivialCert, valueAtCert)
 import Devastator.Framing (Jsonl (..))
 import Devastator.Replay (separationSignificance)
-import Devastator.Tape (readMeeting)
+import Devastator.Run (Framed)
+import Devastator.Tape (readTape)
+import Devastator.Toy (ToyBody)
 import Devastator.Verdict (Verdict (..))
 
 -- | One row in the verdict ledger.
@@ -160,31 +164,57 @@ parseEntry t = do
         veThread = thread
       }
 
--- | Recompute the verdict for an entry from its cited tape files.
+-- * Replayability
+
+-- | Recompute a verdict entry from its cited tape files, generically.
 --
--- Returns the recomputed verdict and significance. This is the replayability
--- oracle: the ledger is trustworthy only if the entries reproduce from the
--- named tapes.
-recomputeVerdict :: VerdictEntry -> IO (Verdict, Double)
-recomputeVerdict e = do
+-- The certificate resolver maps the ledger's certificate name back to a
+-- 'Certificate' at the entry's body type; the judgement maps the two tapes
+-- to a verdict and significance. This is the replayability oracle: the
+-- ledger is trustworthy only if the entries reproduce from the named tapes.
+recomputeWith ::
+  (Framed b) =>
+  -- | certificate resolver, ledger name to certificate
+  (Text -> Certificate b) ->
+  -- | judgement: entry, certificate, true log, null log to verdict and significance
+  (VerdictEntry -> Certificate b -> [Stamped b] -> [Stamped b] -> (Verdict, Double)) ->
+  VerdictEntry ->
+  IO (Verdict, Double)
+recomputeWith resolve judge e = do
   trueJsonl <- readTapeFile (veTrueLog e)
   nullJsonl <- readTapeFile (veNullLog e)
-  let trueMeeting = readMeeting trueJsonl
-      nullMeeting = readMeeting nullJsonl
-      cert = resolveCert (veCertificate e)
-      sig = separationSignificance cert (veEpsilon e) trueMeeting nullMeeting
-      v = classify (veTolerance e) (cert trueMeeting) (cert nullMeeting) sig
-  pure (v, sig)
+  let trueLog = readTape trueJsonl
+      nullLog = readTape nullJsonl
+      cert = resolve (veCertificate e)
+  pure (judge e cert trueLog nullLog)
   where
     readTapeFile path =
       Jsonl . Text.lines <$> Text.IO.readFile (Text.unpack path)
-    resolveCert "trivialCert" = trivialCert
-    resolveCert "maxValueCert" = maxValueCert
-    resolveCert name
-      | "valueAtCert@" `Text.isPrefixOf` name =
-          let t0 = read (Text.unpack (Text.drop 12 name))
-           in valueAtCert t0
-    resolveCert _ = trivialCert
+
+-- | Recompute a toy-body verdict entry from its cited tape files.
+recomputeVerdict :: VerdictEntry -> IO (Verdict, Double)
+recomputeVerdict = recomputeWith resolveCert judgeToy
+
+resolveCert :: Text -> Certificate ToyBody
+resolveCert "trivialCert" = trivialCert
+resolveCert "maxValueCert" = maxValueCert
+resolveCert name
+  | "valueAtCert@" `Text.isPrefixOf` name =
+      let t0 = read (Text.unpack (Text.drop 12 name))
+       in valueAtCert t0
+resolveCert _ = trivialCert
+
+judgeToy ::
+  VerdictEntry ->
+  Certificate ToyBody ->
+  [Stamped ToyBody] ->
+  [Stamped ToyBody] ->
+  (Verdict, Double)
+judgeToy e cert trueLog nullLog =
+  let sig = separationSignificance cert (veEpsilon e) trueLog nullLog
+      v = classify (veTolerance e) (cert trueLog) (cert nullLog) sig
+   in (v, sig)
+  where
     classify tol vTrue vNull sig
       | abs (vTrue - vNull) < tol = Skeleton
       | sig > 3.0 = Separating

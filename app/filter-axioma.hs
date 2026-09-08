@@ -12,7 +12,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text.IO
 import Devastator.Fiber (frameFiber, integrateFiber)
-import Devastator.Filter (filterVerdict, recomputeFiberVerdict, shellEnergyCert, totalEnergyCert)
+import Devastator.Cert (shellEnergyCert, totalEnergyCert)
+import Devastator.Filter (filterVerdict, recomputeFiberVerdict)
 import Devastator.Framing (Jsonl (..))
 import Devastator.Ledger
   ( VerdictEntry (..),

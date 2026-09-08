@@ -67,7 +67,15 @@ toyRun :: BilinearOp -> Run (Double, Double) ToyBody
 toyRun op =
   Run
     (\(t, u) -> ToyBody t u (opApply op u))
-    (\(t, u) -> (t + dt, u + dt * opApply op u))
+    (\_ (t, u) -> (t + dt, u + dt * opApply op u))
+
+-- | The multi-cell clock reads directly off the step index — @t = k * dt@,
+-- not iterated addition — which is what the multi-cell tape's times encode.
+cellRun :: BilinearOp -> Run (Double, Double) ToyBody
+cellRun op =
+  Run
+    (\(t, u) -> ToyBody t u (opApply op u))
+    (\k (_, u) -> (fromIntegral k * dt, u + dt * opApply op u))
 
 toyCfg :: RunCfg
 toyCfg = RunCfg "seed" "step" ["integrator"] ["integrator"]
@@ -99,7 +107,7 @@ multiIntegrate cells =
   runTapeN
     stopClock
     [RunCfg ("seed-" <> name) ("step-" <> name) ["integrator-" <> name] ["integrator-" <> name] | (name, _, _) <- cells]
-    [toyRun op | (_, op, _) <- cells]
+    [cellRun op | (_, op, _) <- cells]
     [(0, u0) | (_, _, u0) <- cells]
 
 -- * Codec
