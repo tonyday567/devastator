@@ -7,13 +7,13 @@
 -- verdicts to a ledger, and verifies round-trip + replayability.
 module Main (main) where
 
-import Circuit.Agent.Framing (Jsonl (..))
 import Data.Complex
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text.IO
 import Devastator.Fiber (frameFiber, integrateFiber)
 import Devastator.Filter (filterVerdict, recomputeFiberVerdict, shellEnergyCert, totalEnergyCert)
+import Devastator.Framing (Jsonl (..))
 import Devastator.Ledger
   ( VerdictEntry (..),
     appendEntry,
@@ -50,7 +50,7 @@ tEnd0 = 0.2
 seedField :: SpectralField
 seedField =
   fieldFromList $
-    [ (k, 0) | k <- spectralModes nTrunc ]
+    [(k, 0) | k <- spectralModes nTrunc]
       ++ [ ((1, 0), 0.8 :+ 0.1),
            ((-1, 0), 0.8 :+ (-0.1)),
            ((0, 1), 0.5 :+ 0.0),

@@ -9,12 +9,12 @@
 --     recorded verdict.
 module Main (main) where
 
-import Circuit.Agent.Framing (Jsonl (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.IO qualified as Text.IO
 import Devastator.Cert (Certificate, maxValueCert, trivialCert, valueAtCert)
+import Devastator.Framing (Jsonl (..))
 import Devastator.Ledger
   ( VerdictEntry (..),
     appendEntry,

@@ -12,19 +12,14 @@ module Devastator.Tape
 where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing
-  ( Jsonl (..),
-    Stamped (..),
-    These (..),
-    frameStored,
-    uncons,
-  )
+import Circuit.Agent.Framing (Stamped, These (..), frameStored)
 import Circuit.Parser.Json (decodeJson, encodeJson)
 import Circuit.Parser.Json.Value (Json (..))
+import Data.List (unfoldr)
 import Data.Scientific (Scientific, fromFloatDigits, toRealFloat)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.List (unfoldr)
+import Devastator.Framing (Jsonl (..), uncons)
 import Devastator.Toy (ToyBody (..))
 
 jdouble :: Double -> Json
@@ -54,14 +49,14 @@ decodeBody t = do
   pure (ToyBody time value flux)
 
 -- | Convert a toy meeting into a JSONL tape.
-frameMeeting :: [Stamped (Post ToyBody)] -> Jsonl
+frameMeeting :: [Stamped ToyBody] -> Jsonl
 frameMeeting =
   Jsonl . map (frameStored . fmap encodePostBody)
   where
     encodePostBody p = p {body = encodeBody (body p)}
 
 -- | Read a JSONL tape back into a toy meeting.
-readMeeting :: Jsonl -> [Stamped (Post ToyBody)]
+readMeeting :: Jsonl -> [Stamped ToyBody]
 readMeeting = unfoldr unconsOne
   where
     unconsOne j = case uncons j of

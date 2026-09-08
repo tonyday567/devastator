@@ -5,7 +5,7 @@
 module Main (main) where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Devastator.Cert (maxValueCert, trivialCert)
 import Devastator.Tape (frameMeeting, readMeeting)
 import Devastator.Toy (ToyBody (..), integrate, nullOp, trueOp)
@@ -23,7 +23,7 @@ assert msg ok =
 approx :: Double -> Double -> Double -> Bool
 approx tol a b = abs (a - b) < tol * (1 + abs a + abs b)
 
-bodyValues :: [Stamped (Post ToyBody)] -> [ToyBody]
+bodyValues :: [Stamped ToyBody] -> [ToyBody]
 bodyValues = map (body . stamped)
 
 main :: IO ()

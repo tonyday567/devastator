@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Toy scalar ODE meeting for the devastator observatory.
 module Devastator.Toy
@@ -13,9 +14,10 @@ module Devastator.Toy
 where
 
 import Circuit.Agent (Post (..), PostId)
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped, pattern Stamped)
 import Data.List (unfoldr)
 import Data.Text (Text)
+import Devastator.Framing (epoch)
 
 -- | Body carried by each toy integration post.
 data ToyBody = ToyBody
@@ -53,14 +55,13 @@ tEnd = 0.9
 -- Produces a stamped log: a seed post followed by one step post per
 -- integration step. Step posts thread the id of their immediate predecessor,
 -- so the tape encodes the causal chain by construction.
-integrate :: BilinearOp -> [Stamped (Post ToyBody)]
+integrate :: BilinearOp -> [Stamped ToyBody]
 integrate op = go 0 0.0 1.0 [seed]
   where
-    seed :: Stamped (Post ToyBody)
+    seed :: Stamped ToyBody
     seed =
       Stamped
-        0
-        ""
+        (epoch, 0)
         ( Post
             { from = "seed",
               to = ["integrator"],
@@ -68,7 +69,7 @@ integrate op = go 0 0.0 1.0 [seed]
               body = ToyBody 0.0 1.0 (opApply op 1.0)
             }
         )
-    go :: Int -> Double -> Double -> [Stamped (Post ToyBody)] -> [Stamped (Post ToyBody)]
+    go :: Int -> Double -> Double -> [Stamped ToyBody] -> [Stamped ToyBody]
     go n t u acc
       | t >= tEnd = reverse acc
       | otherwise =
@@ -83,13 +84,13 @@ integrate op = go 0 0.0 1.0 [seed]
                     thread = [fromIntegral n],
                     body = ToyBody t' u' (opApply op u')
                   }
-           in go (n + 1) t' u' (Stamped postId "" p : acc)
+           in go (n + 1) t' u' (Stamped (epoch, postId) p : acc)
 
 -- | Extract the seed bodies from a log, oldest first.
 --
 -- Seed posts are recognised by an empty thread. In the scalar and multi-cell
 -- toys every non-seed post threads its predecessor, so this is exact.
-seedBodies :: [Stamped (Post ToyBody)] -> [ToyBody]
+seedBodies :: [Stamped ToyBody] -> [ToyBody]
 seedBodies = map (body . stamped) . filter (null . thread . stamped)
 
 -- | Per-cell state threaded through a multi-cell integration.
@@ -106,15 +107,14 @@ data CellState = CellState
 -- previous post. Therefore posts within a step can be emitted in any order.
 -- This gives the toy a non-trivial linearization-invariance oracle (O5):
 -- permuting the order of independent posts does not change the physics.
-multiIntegrate :: [(Text, BilinearOp, Double)] -> [Stamped (Post ToyBody)]
+multiIntegrate :: [(Text, BilinearOp, Double)] -> [Stamped ToyBody]
 multiIntegrate cells = seeds ++ concat (unfoldr step (initStates, 1))
   where
     n = length cells
     seeds = zipWith makeSeed [0 ..] cells
     makeSeed i (name, op, u0) =
       Stamped
-        i
-        ""
+        (epoch, i)
         ( Post
             { from = "seed-" <> name,
               to = ["integrator-" <> name],
@@ -132,7 +132,7 @@ multiIntegrate cells = seeds ++ concat (unfoldr step (initStates, 1))
               let (posts, states') = unzip (map (advanceCell n k t) states)
                in Just (posts, (states', k + 1))
 
-advanceCell :: Int -> Int -> Double -> CellState -> (Stamped (Post ToyBody), CellState)
+advanceCell :: Int -> Int -> Double -> CellState -> (Stamped ToyBody, CellState)
 advanceCell n k t (CellState prevId name op u) =
   let flux = opApply op u
       u' = u + dt * flux
@@ -144,4 +144,4 @@ advanceCell n k t (CellState prevId name op u) =
             thread = [prevId],
             body = ToyBody t u' (opApply op u')
           }
-   in (Stamped postId "" p, CellState postId name op u')
+   in (Stamped (epoch, postId) p, CellState postId name op u')

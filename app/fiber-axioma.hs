@@ -20,7 +20,7 @@
 module Main (main) where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Data.Complex
 import Data.Map.Strict qualified as Data.Map.Strict
 import Devastator.Fiber (FiberBody (..), bodyField, frameFiber, integrateFiber, readFiber)
@@ -53,7 +53,7 @@ tEnd0 = 0.2
 seedField :: SpectralField
 seedField =
   fieldFromList $
-    [ (k, 0) | k <- spectralModes nTrunc ]
+    [(k, 0) | k <- spectralModes nTrunc]
       ++ [ ((1, 0), 0.8 :+ 0.1),
            ((-1, 0), 0.8 :+ (-0.1)),
            ((0, 1), 0.5 :+ 0.0),
@@ -63,7 +63,7 @@ seedField =
          ]
 
 -- | Fields from a fiber tape, one per post.
-tapeFields :: [Stamped (Post FiberBody)] -> [SpectralField]
+tapeFields :: [Stamped FiberBody] -> [SpectralField]
 tapeFields = map (bodyField . body . stamped)
 
 main :: IO ()
@@ -81,7 +81,8 @@ main = do
       -- polarization: B(x,y) = (N(x+y) - N(x) - N(y)) / 2
       bilin box x y =
         scaleField 0.5 $
-          foldl1 addFields
+          foldl1
+            addFields
             [ nonlinearTendency nTrunc box (addFields x y),
               scaleField (-1) (nonlinearTendency nTrunc box x),
               scaleField (-1) (nonlinearTendency nTrunc box y)
@@ -125,9 +126,9 @@ main = do
   putStrLn "O1' energy audit"
   let audit box nu fs =
         [ (e1 - e0) - dt0 * (energyNonlinPairing nTrunc box f0 - 2 * nu * enstrophy f0) - 0.5 * dt0 * dt0 * tendencyEnergyNorm nTrunc box nu f0
-          | (f0, f1) <- zip fs (tail fs),
-            let e0 = energy f0,
-            let e1 = energy f1
+        | (f0, f1) <- zip fs (tail fs),
+          let e0 = energy f0,
+          let e1 = energy f1
         ]
       auditErrsInv = audit trueNseBox 0.0 fieldsInv
       auditErrsVis = audit trueNseBox 0.05 fieldsVis
@@ -144,9 +145,9 @@ main = do
   putStrLn "enstrophy audit"
   let auditZ box nu fs =
         [ (z1 - z0) - dt0 * (enstrophyNonlinPairing nTrunc box f0 - 2 * nu * palinstrophy f0) - 0.5 * dt0 * dt0 * tendencyEnstrophyNorm nTrunc box nu f0
-          | (f0, f1) <- zip fs (tail fs),
-            let z0 = enstrophy f0,
-            let z1 = enstrophy f1
+        | (f0, f1) <- zip fs (tail fs),
+          let z0 = enstrophy f0,
+          let z1 = enstrophy f1
         ]
       maxAuditZ = maximum (map abs (auditZ trueNseBox 0.05 fieldsVis))
   putStrLn ("  max viscous enstrophy audit residual: " ++ show maxAuditZ)

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Katz–Pavlović dyadic model: a hostile null for the devastator.
 --
@@ -23,7 +24,7 @@ module Devastator.Null.Dyadic
 where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Jsonl (..), Stamped (..), These (..), frameStored, uncons)
+import Circuit.Agent.Framing (Stamped, These (..), frameStored, pattern Stamped)
 import Circuit.Parser.Json (decodeJson, encodeJson)
 import Circuit.Parser.Json.Value (Json (..))
 import Data.List (unfoldr)
@@ -31,6 +32,7 @@ import Data.Scientific (fromFloatDigits, toRealFloat)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector qualified as V
+import Devastator.Framing (Jsonl (..), epoch, uncons)
 
 -- | Body carried by each dyadic post: time plus the shell amplitudes.
 data DyadicBody = DyadicBody
@@ -50,18 +52,18 @@ kpBox n = [lambda ^ (2 * k) | k <- [0 .. n - 1]]
 -- @E = ½ Σ λ^{-n} a_n²@, not the unweighted sum.
 dyadicEnergy :: DyadicBody -> Double
 dyadicEnergy b =
-  0.5 * sum [lambda ^^ (- (i :: Int)) * a * a | (i, a) <- zip [0 ..] (dbShells b)]
+  0.5 * sum [lambda ^^ (-(i :: Int)) * a * a | (i, a) <- zip [0 ..] (dbShells b)]
 
 -- | Energy above a shell cutoff, using the same weights.
 dyadicShellEnergy :: Int -> DyadicBody -> Double
 dyadicShellEnergy cutoff b =
-  0.5 * sum [lambda ^^ (- (i :: Int)) * a * a | (i, a) <- zip [0 ..] (dbShells b), i >= cutoff]
+  0.5 * sum [lambda ^^ (-(i :: Int)) * a * a | (i, a) <- zip [0 ..] (dbShells b), i >= cutoff]
 
 -- | Tendency of the KP model on the first n shells.
 dyadicTendency :: Int -> [Double] -> [Double]
 dyadicTendency n as =
   [ go i
-    | i <- [0 .. n - 1]
+  | i <- [0 .. n - 1]
   ]
   where
     at i = if i >= 0 && i < n then as !! i else 0.0
@@ -110,13 +112,12 @@ integrateDyadic ::
   Double ->
   -- | initial amplitudes
   [Double] ->
-  [Stamped (Post DyadicBody)]
+  [Stamped DyadicBody]
 integrateDyadic n dt tEnd seed = go 0 0.0 seed [seedPost]
   where
     seedPost =
       Stamped
-        0
-        ""
+        (epoch, 0)
         ( Post
             { from = "dyadic-seed",
               to = ["dyadic"],
@@ -124,7 +125,7 @@ integrateDyadic n dt tEnd seed = go 0 0.0 seed [seedPost]
               body = DyadicBody 0.0 (take n (seed ++ repeat 0.0))
             }
         )
-    go :: Int -> Double -> [Double] -> [Stamped (Post DyadicBody)] -> [Stamped (Post DyadicBody)]
+    go :: Int -> Double -> [Double] -> [Stamped DyadicBody] -> [Stamped DyadicBody]
     go !k !t !as acc
       | t >= tEnd - 1e-15 = reverse acc
       | otherwise =
@@ -137,14 +138,14 @@ integrateDyadic n dt tEnd seed = go 0 0.0 seed [seedPost]
                     thread = [fromIntegral (k :: Int)],
                     body = DyadicBody t' as'
                   }
-           in go (k + 1) t' as' (Stamped (fromIntegral (k + 1)) "" p : acc)
+           in go (k + 1) t' as' (Stamped (epoch, fromIntegral (k + 1)) p : acc)
 
-frameDyadic :: [Stamped (Post DyadicBody)] -> Jsonl
+frameDyadic :: [Stamped DyadicBody] -> Jsonl
 frameDyadic = Jsonl . map (frameStored . fmap encodePostBody)
   where
     encodePostBody p = p {body = encodeBody (body p)}
 
-readDyadic :: Jsonl -> [Stamped (Post DyadicBody)]
+readDyadic :: Jsonl -> [Stamped DyadicBody]
 readDyadic = unfoldr unconsOne
   where
     unconsOne j = case uncons j of

@@ -17,7 +17,7 @@
 module Main (main) where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Data.List (findIndex)
 import Devastator.Null.Dyadic
 import System.Exit (exitFailure)
@@ -46,9 +46,9 @@ energyFront b =
   maximum
     ( [-1]
         ++ [ i
-             | (i, a) <- zip [0 ..] (dbShells b),
-               let w = 0.5 * (2.0 :: Double) ^^ (-i) * a * a
-                in w > 0.01 * dyadicEnergy b
+           | (i, a) <- zip [0 ..] (dbShells b),
+             let w = 0.5 * (2.0 :: Double) ^^ (-i) * a * a
+              in w > 0.01 * dyadicEnergy b
            ]
     )
 

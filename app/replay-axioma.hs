@@ -10,7 +10,7 @@
 module Main (main) where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Devastator.Cert (maxValueCert, trivialCert, valueAtCert)
 import Devastator.Replay
   ( linearizationInvariant,

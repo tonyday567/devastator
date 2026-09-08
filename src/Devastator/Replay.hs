@@ -22,7 +22,7 @@ module Devastator.Replay
 where
 
 import Circuit.Agent (Post (..), PostId)
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamp, stamped)
 import Data.List (find)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -34,22 +34,22 @@ import Devastator.Toy (BilinearOp (..), ToyBody (..), multiIntegrate, seedBodies
 --
 -- Names are recovered from @from = "seed-<name>"@. The supplied operator
 -- replaces whatever operator produced the original log.
-cellsFromLog :: BilinearOp -> [Stamped (Post ToyBody)] -> [(Text, BilinearOp, Double)]
+cellsFromLog :: BilinearOp -> [Stamped ToyBody] -> [(Text, BilinearOp, Double)]
 cellsFromLog op meeting =
   [ (Text.drop 5 (from p), op, tbValue (body p))
-    | sp <- filter (null . thread . stamped) meeting,
-      let p = stamped sp,
-      Text.isPrefixOf "seed-" (from p)
+  | sp <- filter (null . thread . stamped) meeting,
+    let p = stamped sp,
+    Text.isPrefixOf "seed-" (from p)
   ]
 
 -- | Replay a meeting from its seeds with a (possibly swapped) operator.
 --
 -- The operator tag is overwritten; every cell keeps its name and initial value.
-replayMeeting :: BilinearOp -> [Stamped (Post ToyBody)] -> [Stamped (Post ToyBody)]
+replayMeeting :: BilinearOp -> [Stamped ToyBody] -> [Stamped ToyBody]
 replayMeeting op meeting = multiIntegrate (cellsFromLog op meeting)
 
 -- | Swap the nonlinearity box and replay the meeting from the same seeds.
-swapBox :: BilinearOp -> [Stamped (Post ToyBody)] -> [Stamped (Post ToyBody)]
+swapBox :: BilinearOp -> [Stamped ToyBody] -> [Stamped ToyBody]
 swapBox = replayMeeting
 
 -- | Check that every post in the first log whose PostId also appears in the
@@ -57,14 +57,15 @@ swapBox = replayMeeting
 --
 -- This is the "unchanged cone" oracle made executable: if nothing in a post's
 -- ancestry changed, its body must reproduce exactly.
-unchangedCone :: [Stamped (Post ToyBody)] -> [Stamped (Post ToyBody)] -> Bool
+unchangedCone :: [Stamped ToyBody] -> [Stamped ToyBody] -> Bool
 unchangedCone as bs = all match as
   where
-    match a = case find ((== stampId a) . stampId) bs of
+    match a = case find ((== postIdOf a) . postIdOf) bs of
       Nothing -> False
       Just b ->
         thread (stamped a) == thread (stamped b)
           && body (stamped a) == body (stamped b)
+    postIdOf = snd . stamp
 
 -- | Calibrated noise floor for a certificate on a given log.
 --
@@ -72,15 +73,15 @@ unchangedCone as bs = all match as
 -- the largest absolute change in the certificate. The floor is never reported
 -- as zero: if epsilon is zero or the system is perfectly insensitive, the
 -- floor is clamped to epsilon itself so the significance ratio stays honest.
-noiseFloor :: Certificate -> Double -> [Stamped (Post ToyBody)] -> Double
+noiseFloor :: Certificate -> Double -> [Stamped ToyBody] -> Double
 noiseFloor cert epsilon meeting =
   let cells = cellsFromLog (BilinearOp "noise" id) meeting -- op unused for perturbation
       base = cert (multiIntegrate cells)
       floors =
         [ abs (cert (multiIntegrate cells') - base)
-          | (i, _) <- zip [(0 :: Int) ..] cells,
-            d <- [-epsilon, epsilon],
-            let cells' = perturb i d cells
+        | (i, _) <- zip [(0 :: Int) ..] cells,
+          d <- [-epsilon, epsilon],
+          let cells' = perturb i d cells
         ]
    in max epsilon (maximum (0 : floors))
   where
@@ -90,7 +91,7 @@ noiseFloor cert epsilon meeting =
 --
 -- Returns @|cert(true) - cert(null)| / noiseFloor(cert, epsilon, trueLog)@.
 -- A ratio above the chosen threshold is what earns a SEPARATING verdict.
-separationSignificance :: Certificate -> Double -> [Stamped (Post ToyBody)] -> [Stamped (Post ToyBody)] -> Double
+separationSignificance :: Certificate -> Double -> [Stamped ToyBody] -> [Stamped ToyBody] -> Double
 separationSignificance cert epsilon trueLog nullLog =
   let sep = abs (cert trueLog - cert nullLog)
       floor' = noiseFloor cert epsilon trueLog

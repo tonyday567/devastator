@@ -8,11 +8,11 @@ module Devastator.Cert
 where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing (Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Devastator.Toy (ToyBody (..))
 
 -- | A certificate reads the tape and emits a single scalar.
-type Certificate = [Stamped (Post ToyBody)] -> Double
+type Certificate = [Stamped ToyBody] -> Double
 
 -- | Skeleton-level sanity check: cannot distinguish true from null.
 trivialCert :: Certificate

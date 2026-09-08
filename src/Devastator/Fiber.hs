@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | NSE fiber: integrate the spectral system and emit a Post/JSONL tape.
 --
@@ -16,13 +17,7 @@ module Devastator.Fiber
 where
 
 import Circuit.Agent (Post (..))
-import Circuit.Agent.Framing
-  ( Jsonl (..),
-    Stamped (..),
-    These (..),
-    frameStored,
-    uncons,
-  )
+import Circuit.Agent.Framing (Stamped, These (..), frameStored, pattern Stamped)
 import Circuit.Parser.Json (decodeJson, encodeJson)
 import Circuit.Parser.Json.Value (Json (..))
 import Data.Complex
@@ -32,6 +27,7 @@ import Data.Scientific (fromFloatDigits, toRealFloat)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector qualified as V
+import Devastator.Framing (Jsonl (..), epoch, uncons)
 import Devastator.Spectral (BilinearBox, SpectralField (..), fieldFromList, stepField)
 
 -- | Body carried by each fiber post: time plus the full spectral state.
@@ -66,7 +62,7 @@ encodeBody b =
             JArray $
               V.fromList
                 [ JArray (V.fromList [jint kx, jint ky, jdouble re, jdouble im])
-                  | ((kx, ky), (re, im)) <- fbModes b
+                | ((kx, ky), (re, im)) <- fbModes b
                 ]
           )
         ]
@@ -103,15 +99,14 @@ integrateFiber ::
   -- | tEnd
   Double ->
   SpectralField ->
-  [Stamped (Post FiberBody)]
+  [Stamped FiberBody]
 integrateFiber nTrunc box nu dt tEnd seed = go 0 0.0 seed [seedPost]
   where
     fieldList = [((kx, ky), (realPart w, imagPart w)) | ((kx, ky), w) <- fieldToList seed]
     fieldToList (SpectralField m) = Map.toList m
     seedPost =
       Stamped
-        0
-        ""
+        (epoch, 0)
         ( Post
             { from = "fiber-seed",
               to = ["fiber"],
@@ -119,7 +114,7 @@ integrateFiber nTrunc box nu dt tEnd seed = go 0 0.0 seed [seedPost]
               body = FiberBody 0.0 fieldList
             }
         )
-    go :: Int -> Double -> SpectralField -> [Stamped (Post FiberBody)] -> [Stamped (Post FiberBody)]
+    go :: Int -> Double -> SpectralField -> [Stamped FiberBody] -> [Stamped FiberBody]
     go n t f acc
       | t >= tEnd - 1e-15 = reverse acc
       | otherwise =
@@ -133,16 +128,16 @@ integrateFiber nTrunc box nu dt tEnd seed = go 0 0.0 seed [seedPost]
                     thread = [fromIntegral n],
                     body = FiberBody t' [((kx, ky), (realPart w, imagPart w)) | ((kx, ky), w) <- fieldToList f']
                   }
-           in go (n + 1) t' f' (Stamped postId "" p : acc)
+           in go (n + 1) t' f' (Stamped (epoch, postId) p : acc)
 
 -- | Frame a fiber tape as JSON Lines.
-frameFiber :: [Stamped (Post FiberBody)] -> Jsonl
+frameFiber :: [Stamped FiberBody] -> Jsonl
 frameFiber = Jsonl . map (frameStored . fmap encodePostBody)
   where
     encodePostBody p = p {body = encodeBody (body p)}
 
 -- | Read a fiber tape back.
-readFiber :: Jsonl -> [Stamped (Post FiberBody)]
+readFiber :: Jsonl -> [Stamped FiberBody]
 readFiber = unfoldr unconsOne
   where
     unconsOne j = case uncons j of

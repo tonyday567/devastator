@@ -15,19 +15,20 @@ module Devastator.Filter
 where
 
 import Circuit.Agent (Post (..), PostId)
-import Circuit.Agent.Framing (Jsonl (..), Stamped (..))
+import Circuit.Agent.Framing (Stamped, stamped)
 import Data.Complex (magnitude)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text.IO
 import Devastator.Fiber (FiberBody, bodyField, readFiber)
+import Devastator.Framing (Jsonl (..))
 import Devastator.Ledger (VerdictEntry (..))
 import Devastator.Spectral (BilinearBox (..), SpectralField (..), energy, norm2)
 import Devastator.Verdict (Verdict, verdictRel)
 
 -- | A fiber certificate reads the tape and emits one scalar.
-type FiberCertificate = [Stamped (Post FiberBody)] -> Double
+type FiberCertificate = [Stamped FiberBody] -> Double
 
 -- | Total energy of the final field.
 totalEnergyCert :: FiberCertificate
@@ -53,8 +54,8 @@ filterVerdict ::
   FiberCertificate ->
   BilinearBox ->
   BilinearBox ->
-  [Stamped (Post FiberBody)] ->
-  [Stamped (Post FiberBody)] ->
+  [Stamped FiberBody] ->
+  [Stamped FiberBody] ->
   Text ->
   Text ->
   Double ->

@@ -90,9 +90,9 @@ zeroBox = BilinearBox "zero" (\_ _ -> 0.0)
 spectralModes :: Int -> [(Int, Int)]
 spectralModes n =
   [ (kx, ky)
-    | kx <- [-n .. n],
-      ky <- [-n .. n],
-      (kx, ky) /= (0, 0)
+  | kx <- [-n .. n],
+    ky <- [-n .. n],
+    (kx, ky) /= (0, 0)
   ]
 
 zeroField :: Int -> SpectralField
@@ -129,7 +129,7 @@ viscousTendency n nu (SpectralField f) =
   SpectralField
     ( Map.fromList
         [ (k, ((-nu * norm2 k) :+ 0) * Map.findWithDefault 0 k f)
-          | k <- spectralModes n
+        | k <- spectralModes n
         ]
     )
 
@@ -193,6 +193,6 @@ conjSymmetryError (SpectralField f) =
   maximum $
     0
       : [ magnitude (w - conjugate wneg)
-          | ((kx, ky), w) <- Map.toList f,
-            let wneg = Map.findWithDefault 0 (-kx, -ky) f
+        | ((kx, ky), w) <- Map.toList f,
+          let wneg = Map.findWithDefault 0 (-kx, -ky) f
         ]

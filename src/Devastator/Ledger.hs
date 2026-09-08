@@ -21,7 +21,6 @@ module Devastator.Ledger
 where
 
 import Circuit.Agent (PostId)
-import Circuit.Agent.Framing (Jsonl (..))
 import Circuit.Parser.Json (decodeJson, encodeJson)
 import Circuit.Parser.Json.Value (Json (..))
 import Data.List (unfoldr)
@@ -32,6 +31,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.IO qualified as Text.IO
 import Data.Vector qualified as V
 import Devastator.Cert (Certificate, maxValueCert, trivialCert, valueAtCert)
+import Devastator.Framing (Jsonl (..))
 import Devastator.Replay (separationSignificance)
 import Devastator.Tape (readMeeting)
 import Devastator.Verdict (Verdict (..))
