@@ -2,22 +2,31 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | Toy scalar ODE meeting for the devastator observatory.
+--
+-- The toy is the scalar ODE @u' = f(u)@ with a swappable nonlinearity,
+-- run as a closed cell ('toyRun') and stamped into a tape by the shared
+-- runner in "Devastator.Run". Explicit Euler, post-step observations,
+-- same schedule discipline as every other devastator system.
 module Devastator.Toy
   ( ToyBody (..),
     BilinearOp (..),
     trueOp,
     nullOp,
+    toyRun,
     integrate,
     multiIntegrate,
     seedBodies,
   )
 where
 
-import Circuit.Agent (Post (..), PostId)
+import Circuit.Agent (Post (..))
 import Circuit.Agent.Framing (Stamped, stamped, pattern Stamped)
-import Data.List (unfoldr)
+import Circuit.Parser.Json (decodeJson, encodeJson)
+import Circuit.Parser.Json.Value (Json (..))
+import Data.Scientific (fromFloatDigits, toRealFloat)
 import Data.Text (Text)
-import Devastator.Framing (epoch)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Devastator.Run (Framed (..), Run (..), RunCfg (..), runTape, runTapeN)
 
 -- | Body carried by each toy integration post.
 data ToyBody = ToyBody
@@ -50,41 +59,27 @@ dt = 0.01
 tEnd :: Double
 tEnd = 0.9
 
--- | Discrete-time Euler integration of @u' = f(u)@.
---
--- Produces a stamped log: a seed post followed by one step post per
--- integration step. Step posts thread the id of their immediate predecessor,
--- so the tape encodes the causal chain by construction.
+-- | The toy as a closed cell: state @(t, u)@, observation the toy body,
+-- tick one explicit Euler step. The flux is stored in the body, exactly
+-- the unfused-carrier slot: it is derivable from the value via the
+-- operator, and lives in the body so the observation survives the step.
+toyRun :: BilinearOp -> Run (Double, Double) ToyBody
+toyRun op =
+  Run
+    (\(t, u) -> ToyBody t u (opApply op u))
+    (\(t, u) -> (t + dt, u + dt * opApply op u))
+
+toyCfg :: RunCfg
+toyCfg = RunCfg "seed" "step" ["integrator"] ["integrator"]
+
+stopClock :: (Double, Double) -> Bool
+stopClock (t, _) = t >= tEnd
+
+-- | Discrete-time Euler integration of @u' = f(u)@, stamped into a tape:
+-- a seed post followed by one step post per integration step, each step
+-- post threading the id of its immediate predecessor.
 integrate :: BilinearOp -> [Stamped ToyBody]
-integrate op = go 0 0.0 1.0 [seed]
-  where
-    seed :: Stamped ToyBody
-    seed =
-      Stamped
-        (epoch, 0)
-        ( Post
-            { from = "seed",
-              to = ["integrator"],
-              thread = [],
-              body = ToyBody 0.0 1.0 (opApply op 1.0)
-            }
-        )
-    go :: Int -> Double -> Double -> [Stamped ToyBody] -> [Stamped ToyBody]
-    go n t u acc
-      | t >= tEnd = reverse acc
-      | otherwise =
-          let t' = t + dt
-              flux = opApply op u
-              u' = u + dt * flux
-              postId = fromIntegral (n + 1)
-              p =
-                Post
-                  { from = "step",
-                    to = ["integrator"],
-                    thread = [fromIntegral n],
-                    body = ToyBody t' u' (opApply op u')
-                  }
-           in go (n + 1) t' u' (Stamped (epoch, postId) p : acc)
+integrate op = runTape stopClock toyCfg (toyRun op) (0, 1)
 
 -- | Extract the seed bodies from a log, oldest first.
 --
@@ -93,14 +88,6 @@ integrate op = go 0 0.0 1.0 [seed]
 seedBodies :: [Stamped ToyBody] -> [ToyBody]
 seedBodies = map (body . stamped) . filter (null . thread . stamped)
 
--- | Per-cell state threaded through a multi-cell integration.
-data CellState = CellState
-  { csLastId :: PostId,
-    csName :: Text,
-    csOp :: BilinearOp,
-    csU :: Double
-  }
-
 -- | Multi-cell ODE meeting where each cell has its own operator and seed.
 --
 -- Cells are independent at each time step: a post only threads its own cell's
@@ -108,40 +95,35 @@ data CellState = CellState
 -- This gives the toy a non-trivial linearization-invariance oracle (O5):
 -- permuting the order of independent posts does not change the physics.
 multiIntegrate :: [(Text, BilinearOp, Double)] -> [Stamped ToyBody]
-multiIntegrate cells = seeds ++ concat (unfoldr step (initStates, 1))
-  where
-    n = length cells
-    seeds = zipWith makeSeed [0 ..] cells
-    makeSeed i (name, op, u0) =
-      Stamped
-        (epoch, i)
-        ( Post
-            { from = "seed-" <> name,
-              to = ["integrator-" <> name],
-              thread = [],
-              body = ToyBody 0.0 u0 (opApply op u0)
-            }
-        )
-    initStates = zipWith makeState [0 ..] cells
-    makeState i (name, op, u0) = CellState i name op u0
-    step (states, k) =
-      let t = fromIntegral k * dt
-       in if t > tEnd + 1e-12
-            then Nothing
-            else
-              let (posts, states') = unzip (map (advanceCell n k t) states)
-               in Just (posts, (states', k + 1))
+multiIntegrate cells =
+  runTapeN
+    stopClock
+    [RunCfg ("seed-" <> name) ("step-" <> name) ["integrator-" <> name] ["integrator-" <> name] | (name, _, _) <- cells]
+    [toyRun op | (_, op, _) <- cells]
+    [(0, u0) | (_, _, u0) <- cells]
 
-advanceCell :: Int -> Int -> Double -> CellState -> (Stamped ToyBody, CellState)
-advanceCell n k t (CellState prevId name op u) =
-  let flux = opApply op u
-      u' = u + dt * flux
-      postId = fromIntegral (n * k) + prevId
-      p =
-        Post
-          { from = "step-" <> name,
-            to = ["integrator-" <> name],
-            thread = [prevId],
-            body = ToyBody t u' (opApply op u')
-          }
-   in (Stamped (epoch, postId) p, CellState postId name op u')
+-- * Codec
+
+instance Framed ToyBody where
+  frameBody b =
+    decodeUtf8 $
+      encodeJson $
+        JObject
+          [ ("time", jdouble (tbTime b)),
+            ("value", jdouble (tbValue b)),
+            ("flux", jdouble (tbFlux b))
+          ]
+  unframeBody t = do
+    JObject o <- either (const Nothing) Just (decodeJson (encodeUtf8 t))
+    time <- lookupDouble "time" o
+    value <- lookupDouble "value" o
+    flux <- lookupDouble "flux" o
+    pure (ToyBody time value flux)
+
+jdouble :: Double -> Json
+jdouble = JNumber . fromFloatDigits
+
+lookupDouble :: Text -> [(Text, Json)] -> Maybe Double
+lookupDouble k o = case lookup k o of
+  Just (JNumber s) -> Just (toRealFloat s)
+  _ -> Nothing

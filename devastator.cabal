@@ -29,6 +29,7 @@ library
     Devastator.Null.Dyadic
     Devastator.Null.ShortWave
     Devastator.Replay
+    Devastator.Run
     Devastator.Spectral
     Devastator.Tape
     Devastator.Toy
