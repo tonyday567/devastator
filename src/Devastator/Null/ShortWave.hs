@@ -10,8 +10,14 @@
 -- integrated in tau with V(0) = 1, V'(0) = lambda. The null is the stage
 -- tower whose beta_j shrink, so per-stage amplification compounds while
 -- the injected increments stay summable; the control tower holds beta
--- fixed. The coupling term @beta * P0@ is the mechanism: deleting it
--- ('mutedTendency') mutes the amplification.
+-- fixed. Physics correction (loom/devastator.md, N2 section): the
+-- amplification is kernel-carried — the constant @2@ against the 1/beta
+-- tau-window gives the 1/beta log-amplification law — while the coupling
+-- @beta * P0@ is an O(1) suppressor (its beta cancels against the
+-- 1/beta window); it shapes ray geometry for frame transfer, not the
+-- growth. 'mutedTendency' flattens the coupling to 1: amplification
+-- persists on the same 1/beta plateau, only the O(1) gap moves — the
+-- mutation witness that discriminates this.
 module Devastator.Null.ShortWave
   ( WaveUV (..),
     IdealCfg (..),
