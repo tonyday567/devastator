@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -32,7 +31,7 @@ where
 
 import Circuit.Agent (Post (..), PostId)
 import Circuit.Agent.Framing (Stamped, pattern Stamped)
-import Data.List (unfoldr)
+import Circuit.Traced (Unfold (..), (:.) (..))
 import Data.Text (Text)
 import Devastator.Framing (epoch)
 
@@ -60,17 +59,16 @@ data RunCfg = RunCfg
 -- increment from 0 and every step post threads its immediate predecessor,
 -- so the tape encodes the causal chain by construction.
 runTape :: forall s b. (s -> Bool) -> RunCfg -> Run s b -> s -> [Stamped b]
-runTape stop cfg r s0 = go 0 s0 [seed]
+runTape stop cfg r s0 = seed : unfold gen (0, s0)
   where
     seed :: Stamped b
     seed = Stamped (epoch, 0) (Post (seedFrom cfg) (seedTo cfg) [] (observe r s0))
-    go :: Int -> s -> [Stamped b] -> [Stamped b]
-    go n s acc
-      | stop s = reverse acc
+    gen (n, s)
+      | stop s = Nest Nothing
       | otherwise =
           let s' = tick r (n + 1) s
               p = Post (stepFrom cfg) (stepTo cfg) [fromIntegral n] (observe r s')
-           in go (n + 1) s' (Stamped (epoch, fromIntegral (n + 1)) p : acc)
+           in Nest (Just ((n + 1, s'), Stamped (epoch, fromIntegral (n + 1)) p))
 
 -- | Run several cells in lockstep under a shared clock: all seed posts
 -- first, then per tick one post per cell in order. Cell @i@ occupies
@@ -78,7 +76,7 @@ runTape stop cfg r s0 = go 0 s0 [seed]
 -- independent cells stay independent on the tape — the O5
 -- linearization-invariance shape.
 runTapeN :: forall s b. (s -> Bool) -> [RunCfg] -> [Run s b] -> [s] -> [Stamped b]
-runTapeN stop cfgs runs s0s = seeds ++ concat (unfoldr step (s0s, 1))
+runTapeN stop cfgs runs s0s = seeds ++ concat (unfold gen (1, s0s))
   where
     n = length runs
     seeds :: [Stamped b]
@@ -86,17 +84,16 @@ runTapeN stop cfgs runs s0s = seeds ++ concat (unfoldr step (s0s, 1))
       [ Stamped (epoch, fromIntegral i) (Post (seedFrom cfg) (seedTo cfg) [] (observe r s))
       | (i, cfg, r, s) <- zip4 [0 ..] cfgs runs s0s
       ]
-    step :: ([s], Int) -> Maybe ([Stamped b], ([s], Int))
-    step (ss, k)
-      | any stop ss = Nothing
+    gen (k, ss)
+      | any stop ss = Nest Nothing
       | otherwise =
-          let ss' = map (\(r, s) -> tick r k s) (zip runs ss)
+          let ss' = zipWith (`tick` k) runs ss
               posts =
                 [ Stamped (epoch, postId i k) $
                     Post (stepFrom cfg) (stepTo cfg) [postId i (k - 1)] (observe r s')
                 | (i, cfg, r, s') <- zip4 [0 ..] cfgs runs ss'
                 ]
-           in Just (posts, (ss', k + 1))
+           in Nest (Just ((k + 1, ss'), posts))
     -- PostIds follow the cell's own chain: cell @i@ at tick @k@ sits at
     -- @n * T_k + i@ with @T_k@ the triangular number, threading @n * T_{k-1}
     -- + i@ — the recurrence @id_k = n * k + id_{k-1}@ in closed form.
@@ -112,4 +109,3 @@ zip4 _ _ _ _ = []
 class Framed b where
   frameBody :: b -> Text
   unframeBody :: Text -> Maybe b
-

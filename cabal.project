@@ -1,11 +1,12 @@
 packages:
   ./
-  ../circuits-agent
   ../circuits
+  ../circuits-agent
   ../circuits-diff
   ../circuits-mat
   ../circuits-parser
   ../circuits-prob
+  ../circuits-rel
   ../harpie
   ../numhask
 

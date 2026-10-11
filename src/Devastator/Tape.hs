@@ -13,7 +13,7 @@ where
 
 import Circuit.Agent (Post (..))
 import Circuit.Agent.Framing (Stamped, These (..), frameStored)
-import Data.List (unfoldr)
+import Circuit.Traced (Unfold (..), (:.) (..))
 import Devastator.Framing (Jsonl (..), uncons)
 import Devastator.Run (Framed (..))
 
@@ -25,11 +25,11 @@ frameTape = Jsonl . map (frameStored . fmap encodePostBody)
 
 -- | Read a JSONL tape back into a stamped run.
 readTape :: (Framed b) => Jsonl -> [Stamped b]
-readTape = unfoldr unconsOne
+readTape = unfold gen
   where
-    unconsOne j = case uncons j of
-      These sp rest -> Just (fmap decodePostBody sp, rest)
-      This sp -> Just (fmap decodePostBody sp, Jsonl [])
+    gen j = Nest $ case uncons j of
+      These sp rest -> Just (rest, fmap decodePostBody sp)
+      This sp -> Just (Jsonl [], fmap decodePostBody sp)
       That _ -> Nothing
     decodePostBody p = case unframeBody (body p) of
       Just b -> p {body = b}
